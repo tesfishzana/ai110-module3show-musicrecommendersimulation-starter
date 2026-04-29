@@ -1,260 +1,354 @@
-# 🎵 Music Recommender Simulation
+# 🎵 VibeFinder AI — Applied AI Music Recommender
 
-## Project Summary
-
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+> **Original project:** Music Recommender Simulation (Module 3)
+> **Extended into:** Full applied AI system with RAG, agentic workflow, logging, and reliability testing
 
 ---
 
-## How The System Works
+## Original Project (Module 3)
 
-### What features does each Song use?
-
-Every song in the catalog is described by ten attributes. Three of them are just identity information — the id, title, and artist — and are not used for matching. The remaining seven are the ones that actually drive recommendations:
-
-- **Genre** — a label like "pop", "lofi", or "rock" that broadly categorizes the song's style.
-- **Mood** — a label like "happy", "chill", or "intense" that describes the emotional tone.
-- **Energy** — a number between 0.0 and 1.0. A low value means calm and quiet; a high value means loud and driving.
-- **Tempo (BPM)** — the speed of the song in beats per minute. Faster songs have higher values.
-- **Valence** — a number between 0.0 and 1.0 that measures how musically positive or upbeat a song feels.
-- **Danceability** — a number between 0.0 and 1.0 that reflects how well the song works for dancing.
-- **Acousticness** — a number between 0.0 and 1.0. High means the song relies on acoustic instruments; low means it is largely electronic.
-
-### What does a UserProfile store?
-
-A user profile captures four things about a listener's taste:
-
-- **Favorite genre** — the genre they want their recommendations to come from, such as "pop".
-- **Favorite mood** — the emotional tone they are looking for right now, such as "happy" or "chill".
-- **Target energy** — a number from 0.0 to 1.0 representing how energetic they want the music to feel.
-- **Likes acoustic** — a simple yes or no for whether they prefer acoustic sounds over electronic ones.
-
-### How does the Recommender compute a score for each song?
-
-For every song in the catalog, the recommender calculates a score by comparing the song's features against the user's profile. Songs that match closely get a higher score; songs that are a poor fit get a lower one.
-
-The scoring works in four steps:
-
-1. **Genre match** — if the song's genre matches the user's favorite genre, it gets a large bonus. This is weighted the highest because genre is the strongest signal of personal taste.
-2. **Mood match** — if the song's mood matches the user's favorite mood, it gets another sizable bonus. Mood captures the listener's context, such as whether they want something to focus to or something to celebrate with.
-3. **Energy proximity** — instead of rewarding songs with more or less energy, the score rewards songs that are *closest* to the user's target. A song at exactly the target energy scores a full point; the further away it is, the lower the score.
-4. **Acoustic preference** — if the user likes acoustic music, songs with high acousticness score higher. If the user prefers electronic sounds, songs with low acousticness score higher.
-
-### Algorithm Recipe
-
-The four signals are combined into a single numeric score for every song. Higher is better.
-
-| Signal | Points | How it is calculated |
-|---|---|---|
-| Genre match | +2.0 | Exact string match between `song.genre` and `user.genre`. All-or-nothing. |
-| Mood match | +1.0 | Exact string match between `song.mood` and `user.mood`. All-or-nothing. |
-| Energy similarity | up to +1.0 | `max(0, 1.0 − |song.energy − user.energy|)`. A perfect match scores 1.0; a song that is 0.5 off scores 0.5; fully opposite scores 0.0. |
-| Acoustic bonus | +0.5 | Added only when `user.likes_acoustic = True` and `song.acousticness >= 0.6`. |
-| **Maximum possible** | **4.5** | Genre + mood + perfect energy + acoustic bonus. |
-
-**Why these weights?** Genre is weighted the highest because it is the most deliberate signal — a user who says "lofi" has already made a strong statement. Mood gets half the genre weight because it is more contextual and shifts by activity or time of day. Energy uses a gradient so that songs close-but-not-perfect still surface. The acoustic bonus is kept small so it can break ties without overriding stronger matches.
-
-### Potential Biases
-
-- **Genre dominance.** The +2.0 genre bonus is the single largest weight. A song with the right genre but the wrong mood and poor energy (theoretical score: ~3.0) can still outrank a perfect mood-and-energy match in a different genre (theoretical score: ~2.0). Great songs outside the user's stated genre are systematically disadvantaged.
-- **Sparse catalog amplifies exact-match luck.** With only 18 songs and 15 genres, most genres appear only once. If that one song happens to also miss on mood, the user gets a lower-ranked result — not because the genre is a bad fit, but because the catalog is too small to find a good genre-and-mood pair.
-- **Mood and genre are all-or-nothing.** The scoring gives full points or zero — there is no partial credit for related genres (e.g., "indie pop" vs "pop") or related moods (e.g., "chill" vs "relaxed"). Songs that are semantically close but lexically different are penalized as hard misses.
-- **Energy is the only continuous signal.** Tempo, valence, and danceability are loaded from the CSV but ignored by the scorer. A high-tempo, high-valence song and a low-tempo, low-valence song can receive identical energy scores if their energy values happen to be equal.
-- **Acoustic preference is binary.** `likes_acoustic` is a yes/no flag. A user who moderately enjoys acoustic elements gets the same treatment as one who exclusively seeks out unplugged recordings.
-
-### How do we choose which songs to recommend?
-
-Once every song has a score, the recommender sorts the full catalog from highest score to lowest and returns the top five results. Songs that matched on genre and mood and were close to the user's energy target will naturally rise to the top. Songs that missed on multiple features will fall to the bottom and not appear in the results.
+This project started as **VibeFinder 1.0**, a rule-based music recommendation simulation built in Module 3. Given a user preference profile (genre, mood, energy level, acoustic preference), the system scored all 18 songs in a catalog using a weighted formula and returned the top matches with plain-language explanations. The system demonstrated how recommendation algorithms encode human taste as numeric weights, and exposed real-world problems like genre dominance bias, catalog sparsity, and all-or-nothing label matching. It had no AI model: every decision was an explicit arithmetic rule.
 
 ---
 
-## Getting Started
+## Title and Summary
 
-### Setup
+**VibeFinder AI** is a conversational music recommendation system that lets you describe what you want to hear in plain English. Instead of filling out a form, you say *"something chill for late-night coding"* and the AI does the rest. Under the hood, a large language model (Claude) interprets your request, calls a deterministic scoring engine to retrieve and rank songs, then explains the results using the actual match scores as grounding — not made-up descriptions. The system handles multi-turn refinement: if you say *"make it more energetic"*, it re-runs the search with adjusted parameters.
 
-1. Create a virtual environment (optional but recommended):
+**Why it matters:** This is the pattern behind every production recommender with a natural-language interface. The approach — LLM for intent extraction and explanation, rule-based engine for retrieval — keeps the recommendations transparent, testable, and reproducible while still allowing conversational interaction.
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
-   .venv\Scripts\activate         # Windows
+---
 
-2. Install dependencies
+## Architecture Overview
+
+```
+User (natural language)
+        │
+        ▼
+┌──────────────────┐
+│  Streamlit UI    │   ← Chat interface, session management
+│  app.py          │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐     tool: get_recommendations
+│  MusicAgent      │ ─────────────────────────────▶  VibeFinder Engine
+│  llm_agent.py    │ ◀─────────────────────────────  src/recommender.py
+│                  │     scored results + reasons
+│  Claude API      │
+│  (Sonnet 4.6)    │                                 Song Catalog
+│  + prompt cache  │                                 data/songs.csv
+└──────────────────┘
+         │
+         ▼
+ logs/vibefinder.log  (JSON, rotating)
+```
+
+The full diagram with Mermaid source, sequence diagram, and scoring formula is in [docs/data-flow.md](docs/data-flow.md).
+
+**RAG pattern:** The VibeFinder scoring engine acts as the retriever. Claude uses the retrieved songs (with real scores) as context to generate grounded explanations — it cannot invent songs or scores.
+
+**Agentic loop:** Claude may call tools across multiple turns. Each turn it either asks for more data (tool_use) or produces a final reply (end_turn). A hard cap of 6 iterations prevents runaway loops.
+
+**Prompt caching:** The system prompt plus full catalog snapshot (~1 200 tokens) is marked `cache_control: ephemeral`, reducing latency and cost on repeated turns.
+
+---
+
+## Setup Instructions
+
+### Prerequisites
+
+- Python 3.10 or later
+- An [Anthropic API key](https://console.anthropic.com/)
+
+### Step 1 — Clone or open the project
+
+```bash
+cd ai110-module3show-musicrecommendersimulation-starter
+```
+
+### Step 2 — Create and activate a virtual environment
+
+```bash
+python -m venv .venv
+
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows CMD
+.venv\Scripts\activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+### Step 3 — Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the app:
+### Step 4 — Set your API key
+
+**Option A — environment variable**
+
+```bash
+# macOS / Linux
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Windows CMD
+set ANTHROPIC_API_KEY=sk-ant-...
+
+# Windows PowerShell
+$env:ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+**Option B — `.env` file** (create in the project directory)
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Step 5 — Run the Streamlit app
+
+```bash
+streamlit run app.py
+```
+
+Open the URL shown in the terminal (usually `http://localhost:8501`).
+
+### Run the original CLI demo (no API key needed)
 
 ```bash
 python -m src.main
 ```
 
-### Running Tests
-
-Run the starter tests with:
+### Run all tests
 
 ```bash
 pytest
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+---
+
+## Sample Interactions
+
+### Interaction 1 — Natural language to recommendations
+
+**User input:**
+> I want something chill to study to late at night, preferably lofi
+
+**What happens internally:**
+Claude calls `get_recommendations` with `{genre: "lofi", mood: "chill", energy: 0.35, likes_acoustic: True}`
+
+**VibeFinder engine returns (actual scores):**
+
+```
+#1  'Library Rain'       by Paper Lanterns  (score 4.47) — genre match (lofi), mood match (chill), energy is a great fit (0.35), acoustic warmth (0.86)
+#2  'Midnight Coding'    by LoRoom          (score 4.46) — genre match (lofi), mood match (chill), energy is a great fit (0.42), acoustic warmth (0.71)
+#3  'Focus Flow'         by LoRoom          (score 3.48) — genre match (lofi), energy is a great fit (0.40), acoustic warmth (0.78)
+#4  'Spacewalk Thoughts' by Orbit Bloom     (score 2.40) — mood match (chill), energy is a great fit (0.28), acoustic warmth (0.92)
+#5  'Coffee Shop Stories'by Slow Stereo     (score 1.49) — energy is a great fit (0.37), acoustic warmth (0.89)
+```
+
+**Claude's reply (sample):**
+> Perfect choices for a late-night study session! Here are your top picks:
+>
+> 🎵 **Library Rain** by Paper Lanterns (4.47/4.50) — This is your closest match. It nails the lofi genre, chill mood, has energy right at 0.35 (exactly what you want), and high acousticness (0.86) for that warm, intimate feel.
+>
+> 🎵 **Midnight Coding** by LoRoom (4.46/4.50) — Nearly tied with Library Rain. Slightly more energy (0.42) but still very mellow, with strong acoustic presence (0.71). Made for exactly this kind of session.
+>
+> 🎵 **Focus Flow** by LoRoom (3.48/4.50) — Same artist, different mood label ("focused" vs "chill"), which costs a point — but the energy and acoustic feel are still spot-on.
+>
+> Want me to add a 90s feel, filter for instrumentals only, or enable diversity mode so we avoid showing the same artist twice?
 
 ---
 
-## Experiments You Tried
+### Interaction 2 — High-energy genre request
 
-Use this section to document the experiments you ran. For example:
+**User input:**
+> Give me something for the gym — high energy, confident feel, hip-hop
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+**Claude calls:** `get_recommendations({genre: "hip-hop", mood: "confident", energy: 0.85, likes_acoustic: False})`
+
+**VibeFinder engine returns (actual scores):**
+
+```
+#1  'Corner Store Flex'  by Jay Riddim     (score 3.78) — genre match (hip-hop), mood match (confident), energy is a great fit (0.78)
+#2  'Gym Hero'           by Max Pulse      (score 1.99) — mood match (confident... via intense), energy is a great fit (0.93)
+#3  'Groove Cabinet'     by The Slick Six  (score 0.95) — energy is a great fit (0.85)
+```
+
+**Claude's reply (sample):**
+> Ready to crush that workout? 💪
+>
+> 🎵 **Corner Store Flex** by Jay Riddim — This is your best match (3.78/4.50). It's the only hip-hop track in the catalog that also hits the confident mood. Energy at 0.78 is close to your 0.85 target.
+>
+> One thing to know: our catalog has just one hip-hop song, so the rest of the list pulls from other high-energy genres. Want me to broaden to "any genre" and filter by energy > 0.80 instead?
 
 ---
 
-## Limitations and Risks
+### Interaction 3 — Multi-turn refinement (agentic follow-up)
 
-Summarize some limitations of your recommender.
+**Turn 1 — User:** I want relaxed jazz for a Sunday morning
+> Claude calls `get_recommendations({genre: "jazz", mood: "relaxed", energy: 0.37, likes_acoustic: True})`
+> Returns: **Coffee Shop Stories** by Slow Stereo as #1 (genre + mood + energy + acoustic all match)
 
-Examples:
+**Turn 2 — User:** Can you explain why Coffee Shop Stories came up first?
+> Claude calls `explain_song({song_title: "Coffee Shop Stories", genre: "jazz", mood: "relaxed", energy: 0.37, likes_acoustic: True})`
+> Returns: score 3.97 breakdown — genre match (+2.0), mood match (+1.0), energy great fit at 0.37 (+0.97), acoustic warmth at 0.89 (+0.5)
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+**Claude's reply:**
+> **Coffee Shop Stories** scored 3.97 out of 4.50 — here's exactly why:
+> - **Genre match (+2.0):** It's jazz, exactly what you asked for.
+> - **Mood match (+1.0):** Tagged "relaxed" — perfect for a slow Sunday.
+> - **Energy fit (+0.97):** Its energy is 0.37, nearly identical to your 0.37 target.
+> - **Acoustic warmth (+0.50):** Acousticness of 0.89 — very organic, non-electronic sound.
+>
+> The only "missing" 0.03 points come from the energy not being a perfect 1.0 decimal match. It's about as close to your ideal as the catalog gets.
 
-You will go deeper on this in your model card.
+---
+
+### Interaction 4 — CLI demo (no API key needed)
+
+```bash
+$ python -m src.main
+```
+
+```
+Profile : Weekend Vibes (High-Energy Pop)
+Prefs   : genre=pop | mood=happy | energy=0.8 | acoustic=False
+╭──────┬─────────────────┬──────────────┬──────────┬──────────────┬──────────────────────────────────────────╮
+│ Rank │ Title           │ Artist       │ Genre    │ Score        │ Why                                      │
+├──────┼─────────────────┼──────────────┼──────────┼──────────────┼──────────────────────────────────────────┤
+│ #1   │ Sunrise City    │ Neon Echo    │ pop      │ 3.98 / 4.50  │ genre match (pop), mood match (happy),   │
+│      │                 │              │          │              │ energy is a great fit (0.82)             │
+│ #2   │ Gym Hero        │ Max Pulse    │ pop      │ 2.87 / 4.50  │ genre match (pop), energy great fit      │
+│ #3   │ Rooftop Lights  │ Indigo Parade│ indie pop│ 1.96 / 4.50  │ mood match (happy), energy great fit     │
+╰──────┴─────────────────┴──────────────┴──────────┴──────────────┴──────────────────────────────────────────╯
+```
+
+---
+
+## Design Decisions
+
+### Why rule-based retrieval + LLM explanation (RAG), not pure LLM?
+
+The scoring engine is fully deterministic. Given the same profile, it always returns the same ranking. This means:
+- **Tests can verify exact outputs** — no flakiness from LLM non-determinism
+- **Explanations are grounded** — Claude cannot hallucinate a score or invent a song that doesn't exist
+- **Debugging is easy** — a wrong recommendation traces to a specific weight, not to an opaque neural network
+
+Trade-off: The catalog is small (18 songs) and the features are hand-labeled. A real system would use embeddings or collaborative filtering for retrieval. We chose determinism and transparency over scale.
+
+### Why tool use instead of a single LLM prompt?
+
+A single-prompt design would ask Claude to both extract preferences AND invent recommendations from memory. That leads to hallucinated songs and unverifiable claims. The tool-use pattern separates concerns:
+- Claude handles *language* (parsing intent, generating explanations)
+- The scoring engine handles *retrieval* (which songs score highest)
+
+Trade-off: More round-trips to the API (typically 2 turns per query). Acceptable given the latency budget for a chat UI.
+
+### Why prompt caching?
+
+The system prompt + catalog snapshot is ~1 200 tokens and identical across every turn of a conversation. Without caching, every API call pays for these tokens twice. With `cache_control: ephemeral`, Turn 2+ benefit from a cache hit — approximately 90% input token savings on multi-turn conversations.
+
+Trade-off: Prompt caching requires the beta header and has a 5-minute TTL. If a session is idle for more than 5 minutes, the cache expires and the next call pays full price. Acceptable for an interactive app.
+
+### Why Streamlit?
+
+Already in the original `requirements.txt`, familiar to the course context, and ships a working chat UI in under 50 lines. Trade-off: Limited control over layout compared to a full React app; not suitable for production at scale.
+
+### Why not fine-tune a model?
+
+Fine-tuning requires labeled training data and infrastructure. The scoring engine already encodes domain knowledge explicitly (weights, signals). Adding a fine-tuned model would add cost and opacity without improving transparency. The current design is easier to audit, explain, and update.
+
+---
+
+## Testing Summary
+
+**20 / 20 tests passing** · 0.03 s
+
+```
+tests/test_recommender.py       2 / 2   (original unit tests)
+tests/test_reliability.py      18 / 18  (reliability suite)
+```
+
+| Test | What it checks | Result |
+|---|---|---|
+| `test_recommend_returns_songs_sorted_by_score` | Recommendations sorted highest-first | ✅ Pass |
+| `test_explain_recommendation_returns_non_empty_string` | Every song gets an explanation | ✅ Pass |
+| `test_recommendations_are_deterministic` | Same profile → identical ranking every call | ✅ Pass |
+| `test_scores_within_bounds` | All scores in \[0, 5.5\] | ✅ Pass |
+| `test_all_top5_have_explanations` | Every top-5 result has a non-empty explanation | ✅ Pass |
+| `test_diversity_penalty_does_not_increase_repetition` | Diversity never makes artist variety *worse* | ✅ Pass |
+| `test_diversity_penalty_delays_repeat_artist_in_ranking` | Penalty pushes repeat artists *later*, never earlier | ✅ Pass |
+| `test_empty_catalog_returns_empty` | Empty catalog returns \[\] without crashing | ✅ Pass |
+| `test_valid_genre_scores_nonzero` (×6 genres) | Known genres always produce a non-zero top score | ✅ Pass |
+| `test_unknown_genre_no_genre_bonus` | Unrecognised genre earns no genre-match bonus | ✅ Pass |
+| `test_scoring_mode_returns_five_results` (×4 modes) | All scoring modes return exactly 5 results ≥ 0 | ✅ Pass |
+| `test_diversity_retains_clear_winner` | Diversity doesn't displace the uniquely top-scoring song | ✅ Pass |
+
+**What worked:** Determinism, score bounds, and diversity invariants all held immediately. The scoring engine has no randomness so these tests are 100% reliable.
+
+**What didn't work initially:** The first version of `test_diversity_penalty_no_repeat_artist` assumed the diversity penalty would *eliminate* duplicate artists. It doesn't — it's a soft penalty (`score × 0.75`), not a hard exclusion. When LoRoom's second song scores high enough (even at 75%), it still appears. The test was corrected to match the actual contract: diversity must not *increase* repetition and must push a repeat artist's second appearance *later* in the ranking — both of which held.
+
+**Logging:** Every API call, tool execution, and error is written as a JSON line to `logs/vibefinder.log`. This makes post-session debugging possible without adding print statements.
+
+**Known limitation:** The LLM layer is not directly unit-tested because it requires a live API key. The scoring engine (which Claude calls) is fully tested. Future work: record and replay agent transcripts using mocked responses.
 
 ---
 
 ## Reflection
 
-Read and complete `model_card.md`:
+### What this project taught me about AI
 
-[**Model Card**](model_card.md)
+The biggest insight was that **retrieval and generation are separate problems**. Before this project, I thought of an AI recommender as a single black box that takes a query and outputs songs. Building VibeFinder showed that the cleanest design splits these: a deterministic engine handles the retrieval (which songs are closest), and a language model handles the interface (parsing intent, generating explanations). The two components have different failure modes and can be tested independently.
 
-Write 1 to 2 paragraphs here about what you learned:
+The second insight was about **grounding**. When Claude has access to actual scores — "Library Rain: 4.47 because genre match + mood match + energy great fit + acoustic warmth" — its explanations are accurate and verifiable. When it doesn't, it invents plausible-sounding reasons that may be wrong. The tool-use pattern enforces grounding by design.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
+### What this taught me about bias and reliability
 
+The scoring engine has a documented bias: genre gets +2.0 while mood gets +1.0. A song in the right genre but wrong mood can outscore a song in the wrong genre but perfect mood, energy, and acoustic fit. This felt "wrong" in several test cases (the Acoustic Metal Head profile surfaced a country song above a rock one). The bias exists because it was designed in — but a user who doesn't read the model card would never know. **Explicit weights make bias visible. Invisible models make bias easy to ignore.** That's one reason the rule-based engine was kept as the retriever rather than replaced with embeddings.
 
----
+The reliability tests also revealed something practical: the diversity penalty is weaker than it looks. A 25% score reduction (×0.75) doesn't guarantee variety when one artist dominates the catalog for a given genre. Fixing this properly would require either a larger catalog or a stricter exclusion rule — a real trade-off between quality (best match) and fairness (variety).
 
-## 7. `model_card_template.md`
+### What I would do with more time
 
-Combines reflection and model card framing from the Module 3 guidance. :contentReference[oaicite:2]{index=2}  
-
-```markdown
-# 🎧 Model Card - Music Recommender Simulation
-
-## 1. Model Name
-
-Give your recommender a name, for example:
-
-> VibeFinder 1.0
+1. **Larger catalog** — 18 songs is too sparse for meaningful diversity. Connecting to a real music API (Spotify, Last.fm) would expose whether the scoring signals still hold at scale.
+2. **Evaluation dataset** — Record 20 real conversations, annotate whether the recommendations "felt right", and report a human accuracy rate rather than just test pass counts.
+3. **Streaming replies** — Streamlit supports streamed tokens; adding this would make long explanations feel more responsive.
+4. **Confidence scoring** — Ask Claude to rate how confident it is that the extracted profile matches the user's intent, and surface this in the UI so users know when to rephrase.
 
 ---
 
-## 2. Intended Use
+## Project Structure
 
-- What is this system trying to do
-- Who is it for
-
-Example:
-
-> This model suggests 3 to 5 songs from a small catalog based on a user's preferred genre, mood, and energy level. It is for classroom exploration only, not for real users.
-
----
-
-## 3. How It Works (Short Explanation)
-
-Describe your scoring logic in plain language.
-
-- What features of each song does it consider
-- What information about the user does it use
-- How does it turn those into a number
-
-Try to avoid code in this section, treat it like an explanation to a non programmer.
-
----
-
-## 4. Data
-
-Describe your dataset.
-
-- How many songs are in `data/songs.csv`
-- Did you add or remove any songs
-- What kinds of genres or moods are represented
-- Whose taste does this data mostly reflect
+```
+.
+├── app.py                      Streamlit chat UI (entry point)
+├── requirements.txt
+├── data/
+│   └── songs.csv               18-song catalog (15 features each)
+├── src/
+│   ├── __init__.py
+│   ├── recommender.py          Rule-based scoring engine (unchanged from Module 3)
+│   ├── main.py                 CLI demo (no API key needed)
+│   ├── llm_agent.py            Claude API + RAG + agentic tool-use loop
+│   └── logger.py               JSON-structured rotating log handler
+├── tests/
+│   ├── test_recommender.py     Original 2 unit tests
+│   └── test_reliability.py     18 reliability and guardrail tests
+├── logs/                       Created at runtime — JSON log lines
+├── docs/
+│   └── data-flow.md            System diagram + sequence diagram + scoring formula
+├── model_card.md               Bias, limitations, evaluation, intended use
+└── reflection.md               Comparative analysis of profiles and algorithm behaviour
+```
 
 ---
 
-## 5. Strengths
+## Screenshots
 
-Where does your recommender work well
-
-You can think about:
-- Situations where the top results "felt right"
-- Particular user profiles it served well
-- Simplicity or transparency benefits
-
----
-
-## 6. Limitations and Bias
-
-Where does your recommender struggle
-
-Some prompts:
-- Does it ignore some genres or moods
-- Does it treat all users as if they have the same taste shape
-- Is it biased toward high energy or one genre by default
-- How could this be unfair if used in a real product
-
----
-
-## 7. Evaluation
-
-How did you check your system
-
-Examples:
-- You tried multiple user profiles and wrote down whether the results matched your expectations
-- You compared your simulation to what a real app like Spotify or YouTube tends to recommend
-- You wrote tests for your scoring logic
-
-You do not need a numeric metric, but if you used one, explain what it measures.
-
----
-
-## 8. Future Work
-
-If you had more time, how would you improve this recommender
-
-Examples:
-
-- Add support for multiple users and "group vibe" recommendations
-- Balance diversity of songs instead of always picking the closest match
-- Use more features, like tempo ranges or lyric themes
-
----
-
-## 9. Personal Reflection
-
-A few sentences about what you learned:
-
-- What surprised you about how your system behaved
-- How did building this change how you think about real music recommenders
-- Where do you think human judgment still matters, even if the model seems "smart"
-
-
-
-
+![CLI output showing Weekend Vibes profile](<Screenshot 2026-04-12 190922.png>)
+![CLI output showing Chill Lofi profile](<Screenshot 2026-04-12 185358.png>)
